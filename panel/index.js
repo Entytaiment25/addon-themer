@@ -78,6 +78,10 @@ function clone(value) {
     return JSON.parse(JSON.stringify(value));
 }
 
+function serializeConfig(config) {
+    return JSON.stringify(ensureSections(config || {}));
+}
+
 function setPanelEnabled(enabled) {
     panelThemeEnabled = Boolean(enabled);
     if (panelThemeEnabled) {
@@ -170,6 +174,17 @@ async function saveThemeConfig(config) {
         credentials: 'same-origin',
         headers: getHeaders(),
         body: JSON.stringify({ config }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+    return data.config;
+}
+
+async function resetThemeConfig() {
+    const response = await fetch(`${ADDON_API}/theme-config/reset`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: getHeaders(),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
@@ -328,8 +343,11 @@ function TextField({ label, value, onChange, placeholder }) {
 
 function ThemeEditorPage() {
     const [config, setConfig] = useState(null);
+    const [savedConfig, setSavedConfig] = useState(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [resetting, setResetting] = useState(false);
+    const [resetModalOpen, setResetModalOpen] = useState(false);
     const [message, setMessage] = useState(null);
 
     useEffect(() => {
@@ -337,7 +355,9 @@ function ThemeEditorPage() {
         fetchThemeConfig()
             .then((nextConfig) => {
                 if (!mounted) return;
-                setConfig(ensureSections(nextConfig));
+                const normalized = ensureSections(nextConfig);
+                setConfig(normalized);
+                setSavedConfig(normalized);
                 setLoading(false);
             })
             .catch((error) => {
@@ -350,6 +370,11 @@ function ThemeEditorPage() {
         };
     }, []);
 
+    useEffect(() => {
+        if (!config) return;
+        applyPanelConfig(config);
+    }, [config]);
+
     const updateConfig = (updater) => {
         setConfig((current) => {
             const next = ensureSections(current || {});
@@ -357,6 +382,11 @@ function ThemeEditorPage() {
             return clone(next);
         });
     };
+
+    const unsavedChanges = useMemo(() => {
+        if (!config || !savedConfig) return false;
+        return serializeConfig(config) !== serializeConfig(savedConfig);
+    }, [config, savedConfig]);
 
     const handleSave = async () => {
         if (!config) return;
@@ -366,12 +396,29 @@ function ThemeEditorPage() {
             const savedConfig = await saveThemeConfig(config);
             const normalized = ensureSections(savedConfig);
             setConfig(normalized);
-            applyPanelConfig(normalized);
+            setSavedConfig(normalized);
             setMessage({ type: 'success', text: 'Theme saved. Reopen the in-game menu to refresh its styling.' });
         } catch (error) {
             setMessage({ type: 'error', text: error.message });
         } finally {
             setSaving(false);
+        }
+    };
+
+    const handleReset = async () => {
+        setResetting(true);
+        setMessage(null);
+        try {
+            const resetConfig = await resetThemeConfig();
+            const normalized = ensureSections(resetConfig);
+            setConfig(normalized);
+            setSavedConfig(normalized);
+            setResetModalOpen(false);
+            setMessage({ type: 'success', text: 'Theme reset to addon defaults.' });
+        } catch (error) {
+            setMessage({ type: 'error', text: error.message });
+        } finally {
+            setResetting(false);
         }
     };
 
@@ -390,15 +437,31 @@ function ThemeEditorPage() {
     return h('div', { className: 'flex w-full flex-col gap-4 px-2 pb-10 md:px-0' },
         h('div', { className: 'flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between' },
             h('div', { className: 'space-y-0.5' },
-                h('h1', { className: 'text-2xl font-semibold tracking-tight text-foreground' }, 'Theme Editor'),
-                h('p', { className: 'text-sm text-muted-foreground' }, 'Edit colors, logos, and theme behavior.'),
+                h('div', { className: 'flex flex-wrap items-center gap-2' },
+                    h('h1', { className: 'text-2xl font-semibold tracking-tight text-foreground' }, 'Theme Editor'),
+                    h('span', {
+                        className: `rounded-full px-2.5 py-0.5 text-xs font-medium ${unsavedChanges
+                            ? 'bg-warning/15 text-warning'
+                            : 'bg-success/15 text-success-foreground'}`,
+                    }, unsavedChanges ? 'Unsaved changes' : 'Saved'),
+                ),
+                h('p', { className: 'text-sm text-muted-foreground' }, 'Live preview on panel while editing.'),
             ),
             h('div', { className: 'flex flex-col items-start gap-2 xl:min-w-80 xl:items-end' },
-                h('button', {
-                    onClick: handleSave,
-                    disabled: saving,
-                    className: 'rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground transition-opacity hover:opacity-90 disabled:opacity-60',
-                }, saving ? 'Saving...' : 'Save Theme'),
+                h('div', { className: 'flex items-center gap-2' },
+                    h('button', {
+                        type: 'button',
+                        onClick: () => setResetModalOpen(true),
+                        disabled: saving || resetting,
+                        className: 'rounded-md border border-input bg-background px-4 py-2 text-sm font-semibold text-foreground transition-colors hover:bg-muted disabled:opacity-60',
+                    }, 'Reset'),
+                    h('button', {
+                        type: 'button',
+                        onClick: handleSave,
+                        disabled: saving || resetting || !unsavedChanges,
+                        className: 'rounded-md bg-accent px-4 py-2 text-sm font-semibold text-accent-foreground transition-opacity hover:opacity-90 disabled:opacity-60',
+                    }, saving ? 'Saving...' : 'Save Theme'),
+                ),
             ),
         ),
         message && h('div', {
@@ -513,6 +576,29 @@ function ThemeEditorPage() {
                         })),
                     ),
                 }),
+            ),
+        ),
+        resetModalOpen && h('div', { className: 'fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4' },
+            h('div', { className: 'w-full max-w-md rounded-xl bg-card p-5 shadow-xl ring-1 ring-border/60' },
+                h('div', { className: 'space-y-2' },
+                    h('h2', { className: 'text-lg font-semibold text-foreground' }, 'Reset theme?'),
+                    h('p', { className: 'text-sm text-muted-foreground' },
+                        'This will restore the saved theme to the addon defaults for both the panel and the in-game menu.'),
+                ),
+                h('div', { className: 'mt-5 flex items-center justify-end gap-2' },
+                    h('button', {
+                        type: 'button',
+                        onClick: () => setResetModalOpen(false),
+                        disabled: resetting,
+                        className: 'rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted disabled:opacity-60',
+                    }, 'Cancel'),
+                    h('button', {
+                        type: 'button',
+                        onClick: handleReset,
+                        disabled: resetting,
+                        className: 'rounded-md bg-red-500 px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-60',
+                    }, resetting ? 'Resetting...' : 'Reset Theme'),
+                ),
             ),
         ),
     );

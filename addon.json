@@ -2,7 +2,7 @@
     "id": "addon-themer",
     "name": "fxPanel Themer",
     "description": "Edit the fxPanel web panel and in-game menu with custom colors and logos.",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "author": "entytaiment25",
     "license": "MIT",
     "fxpanel": {

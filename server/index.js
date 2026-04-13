@@ -149,5 +149,14 @@ addon.registerRoute('PUT', '/theme-config', async (req) => {
     return { status: 200, body: { success: true, config } };
 });
 
+addon.registerRoute('POST', '/theme-config/reset', async (req) => {
+    const denial = requireMasterAdmin(req);
+    if (denial) return denial;
+
+    const config = await writeThemeConfig(cloneDefaultConfig());
+    addon.log.info(`Theme config reset by ${req.admin.name}`);
+    return { status: 200, body: { success: true, config } };
+});
+
 addon.log.info('fxPanel Themer server loaded');
 addon.ready();
