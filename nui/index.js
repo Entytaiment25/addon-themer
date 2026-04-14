@@ -105,14 +105,25 @@
 
             var observer = new MutationObserver(function (mutations) {
                 mutations.forEach(function (mutation) {
+                    if (mutation.type === 'attributes') {
+                        var target = mutation.target;
+                        if (nuiThemeEnabled && target instanceof Element && target.matches(LOGO_SELECTOR)) {
+                            if (target.getAttribute('src') !== menuLogoUrl) {
+                                target.setAttribute('src', menuLogoUrl);
+                                target.dataset.addonThemer = 'menu-logo';
+                                markMenuShell(target);
+                            }
+                        }
+                        return;
+                    }
                     mutation.addedNodes.forEach(function (node) {
                         if (!(node instanceof Element)) return;
                         if (nuiThemeEnabled) {
-                            if (node.matches && node.matches('img[alt="fxPanel logo"]')) {
+                            if (node.matches && node.matches(LOGO_SELECTOR)) {
                                 replaceMenuLogos(document);
                                 return;
                             }
-                            if (node.querySelector) {
+                            if (node.querySelector && node.querySelector(LOGO_SELECTOR)) {
                                 replaceMenuLogos(node);
                             }
                         }
@@ -120,7 +131,12 @@
                 });
             });
 
-            observer.observe(document.body, { childList: true, subtree: true });
+            observer.observe(document.body, {
+                childList: true,
+                subtree: true,
+                attributes: true,
+                attributeFilter: ['src'],
+            });
         });
     }
 

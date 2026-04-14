@@ -90,7 +90,6 @@ function normalizeThemeConfig(input) {
 
     const branding = source.branding && typeof source.branding === 'object' ? source.branding : {};
     config.branding.panelLogo = sanitizeString(branding.panelLogo, config.branding.panelLogo);
-    // Allow empty string so NUI can fall back to panelLogo
     config.branding.nuiLogo = typeof branding.nuiLogo === 'string' ? branding.nuiLogo.trim() : '';
 
     const panel = source.panel && typeof source.panel === 'object' ? source.panel : {};
