@@ -22,11 +22,11 @@
     }
 
     function getMenuLogoUrl(config) {
-        var configuredLogo = config && config.branding && config.branding.nuiLogo;
-        if (typeof configuredLogo !== 'string' || !configuredLogo.trim()) {
-            return window.txNuiAddonApi.getStaticUrl(ADDON_ID, 'snaily.gif');
-        }
-        return window.txNuiAddonApi.getStaticUrl(ADDON_ID, configuredLogo.trim());
+        var branding = config && config.branding;
+        var nuiLogo = branding && typeof branding.nuiLogo === 'string' ? branding.nuiLogo.trim() : '';
+        var panelLogo = branding && typeof branding.panelLogo === 'string' ? branding.panelLogo.trim() : '';
+        var logoFile = nuiLogo || panelLogo || 'snaily.gif';
+        return window.txNuiAddonApi.getStaticUrl(ADDON_ID, logoFile);
     }
 
     function restoreMenuLogos(root) {

@@ -12,7 +12,7 @@ const DEFAULT_THEME_CONFIG = {
     enabled: true,
     branding: {
         panelLogo: 'snaily.gif',
-        nuiLogo: 'snaily.gif',
+        nuiLogo: '',
     },
     panel: {
         '--background': '221 40% 10%',
@@ -90,7 +90,8 @@ function normalizeThemeConfig(input) {
 
     const branding = source.branding && typeof source.branding === 'object' ? source.branding : {};
     config.branding.panelLogo = sanitizeString(branding.panelLogo, config.branding.panelLogo);
-    config.branding.nuiLogo = sanitizeString(branding.nuiLogo, config.branding.nuiLogo);
+    // Allow empty string so NUI can fall back to panelLogo
+    config.branding.nuiLogo = typeof branding.nuiLogo === 'string' ? branding.nuiLogo.trim() : '';
 
     const panel = source.panel && typeof source.panel === 'object' ? source.panel : {};
     for (const key of PANEL_KEYS) {

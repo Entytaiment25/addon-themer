@@ -2,7 +2,7 @@
     "enabled": true,
     "branding": {
         "panelLogo": "snaily.gif",
-        "nuiLogo": "snaily.gif"
+        "nuiLogo": ""
     },
     "panel": {
         "--background": "221 40% 10%",

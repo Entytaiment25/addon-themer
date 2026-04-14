@@ -505,7 +505,7 @@ function ThemeEditorPage() {
                         h(TextField, {
                             label: 'NUI Logo File',
                             value: config.branding.nuiLogo || '',
-                            placeholder: 'snaily.gif',
+                            placeholder: 'Leave empty to match Panel Logo',
                             onChange: (value) => updateConfig((next) => {
                                 next.branding.nuiLogo = value;
                             }),
