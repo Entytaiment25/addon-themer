@@ -3,7 +3,6 @@
     var LOGO_SELECTOR = 'img[alt="fxPanel logo"]';
 
     var api = window.txNuiAddonApi;
-    var THEME_CONFIG_URL = api.getStaticUrl(ADDON_ID, 'theme.json');
 
     var menuLogoUrl = null;
     var appliedNuiVarNames = [];
@@ -83,11 +82,7 @@
     }
 
     function loadThemeConfig() {
-        return fetch(THEME_CONFIG_URL)
-            .then(function (response) {
-                if (!response.ok) throw new Error('HTTP ' + response.status);
-                return response.json();
-            })
+        return api.fetch('/addons/' + ADDON_ID + '/static/theme.json')
             .catch(function (error) {
                 console.warn('[addon-themer] Failed to load NUI theme config:', error);
                 return null;
