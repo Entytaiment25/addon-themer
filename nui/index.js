@@ -1,15 +1,18 @@
 (function () {
     var ADDON_ID = 'addon-themer';
-    var THEME_CONFIG_URL = window.txNuiAddonApi.getStaticUrl(ADDON_ID, 'theme.json');
-    var menuLogoUrl = window.txNuiAddonApi.getStaticUrl(ADDON_ID, 'snaily.gif');
+    var LOGO_SELECTOR = 'img[alt="fxPanel logo"]';
+
+    var api = window.txNuiAddonApi;
+    var THEME_CONFIG_URL = api.getStaticUrl(ADDON_ID, 'theme.json');
+
+    var menuLogoUrl = null;
     var appliedNuiVarNames = [];
     var nuiThemeEnabled = false;
 
     function setEnabled(enabled) {
         nuiThemeEnabled = Boolean(enabled);
-        if (nuiThemeEnabled) {
-            document.documentElement.dataset.addonThemerEnabled = 'true';
-        } else {
+        document.documentElement.dataset.addonThemerEnabled = nuiThemeEnabled ? 'true' : undefined;
+        if (!nuiThemeEnabled) {
             delete document.documentElement.dataset.addonThemerEnabled;
         }
     }
@@ -21,26 +24,12 @@
         appliedNuiVarNames = [];
     }
 
-    function getMenuLogoUrl(config) {
-        var branding = config && config.branding;
-        var nuiLogo = branding && typeof branding.nuiLogo === 'string' ? branding.nuiLogo.trim() : '';
-        var panelLogo = branding && typeof branding.panelLogo === 'string' ? branding.panelLogo.trim() : '';
-        var logoFile = nuiLogo || panelLogo || 'snaily.gif';
-        return window.txNuiAddonApi.getStaticUrl(ADDON_ID, logoFile);
-    }
-
-    function restoreMenuLogos(root) {
-        (root || document).querySelectorAll('img[data-addon-themer="menu-logo"]').forEach(function (img) {
-            var original = img.dataset.addonThemerOriginalSrc;
-            if (original) {
-                img.setAttribute('src', original);
-            }
-            delete img.dataset.addonThemer;
-        });
-    }
-
     function applyNuiTheme(config) {
-        menuLogoUrl = getMenuLogoUrl(config);
+        var branding = (config && config.branding) || {};
+        var nuiLogo = typeof branding.nuiLogo === 'string' ? branding.nuiLogo.trim() : '';
+        var panelLogo = typeof branding.panelLogo === 'string' ? branding.panelLogo.trim() : '';
+        menuLogoUrl = api.getStaticUrl(ADDON_ID, nuiLogo || panelLogo || 'snaily.gif');
+
         clearAppliedVars();
         setEnabled(Boolean(config && config.enabled));
 
@@ -49,13 +38,47 @@
             return;
         }
 
-        var nuiTheme = config && config.nui && typeof config.nui === 'object' ? config.nui : {};
+        var nuiTheme = (config && typeof config.nui === 'object' && config.nui) || {};
         Object.keys(nuiTheme).forEach(function (name) {
             var value = nuiTheme[name];
             if (typeof value === 'string') {
                 document.documentElement.style.setProperty(name, value);
                 appliedNuiVarNames.push(name);
             }
+        });
+    }
+
+    function markMenuShell(img) {
+        var shell = img.parentElement;
+        while (shell && !shell.querySelector('.MuiTabs-root')) {
+            shell = shell.parentElement;
+        }
+        if (shell) {
+            shell.dataset.addonThemerShell = 'menu-shell';
+        }
+    }
+
+    function tagLogo(img) {
+        if (!img.dataset.addonThemerOriginalSrc) {
+            img.dataset.addonThemerOriginalSrc = img.getAttribute('src') || '';
+        }
+        if (img.getAttribute('src') !== menuLogoUrl) {
+            img.setAttribute('src', menuLogoUrl);
+        }
+        img.dataset.addonThemer = 'menu-logo';
+        markMenuShell(img);
+    }
+
+    function replaceMenuLogos(root) {
+        if (!nuiThemeEnabled || !menuLogoUrl) return;
+        (root || document).querySelectorAll(LOGO_SELECTOR).forEach(tagLogo);
+    }
+
+    function restoreMenuLogos(root) {
+        (root || document).querySelectorAll('img[data-addon-themer="menu-logo"]').forEach(function (img) {
+            var original = img.dataset.addonThemerOriginalSrc;
+            if (original) img.setAttribute('src', original);
+            delete img.dataset.addonThemer;
         });
     }
 
@@ -71,67 +94,32 @@
             });
     }
 
-    function markMenuShell(img) {
-        var shell = img.parentElement;
-        while (shell && !shell.querySelector('.MuiTabs-root')) {
-            shell = shell.parentElement;
-        }
-        if (shell) {
-            shell.dataset.addonThemerShell = 'menu-shell';
-        }
-    }
-
-    function replaceMenuLogos(root) {
-        if (!nuiThemeEnabled) return;
-        root.querySelectorAll('img[alt="fxPanel logo"]').forEach(function (img) {
-            if (!img.dataset.addonThemerOriginalSrc) {
-                img.dataset.addonThemerOriginalSrc = img.getAttribute('src') || '';
+    function onMutation(mutations) {
+        mutations.forEach(function (mutation) {
+            if (mutation.type === 'attributes') {
+                var target = mutation.target;
+                if (nuiThemeEnabled && target instanceof Element && target.matches(LOGO_SELECTOR)) {
+                    tagLogo(target);
+                }
+                return;
             }
-            if (img.getAttribute('src') !== menuLogoUrl) {
-                img.setAttribute('src', menuLogoUrl);
-            }
-            img.dataset.addonThemer = 'menu-logo';
-            markMenuShell(img);
+            mutation.addedNodes.forEach(function (node) {
+                if (!(node instanceof Element) || !nuiThemeEnabled) return;
+                if (node.matches(LOGO_SELECTOR)) {
+                    replaceMenuLogos(document);
+                } else if (node.querySelector(LOGO_SELECTOR)) {
+                    replaceMenuLogos(node);
+                }
+            });
         });
     }
 
     function startBranding() {
         loadThemeConfig().then(function (config) {
-            if (config) {
-                applyNuiTheme(config);
-            }
-
+            if (config) applyNuiTheme(config);
             replaceMenuLogos(document);
 
-            var observer = new MutationObserver(function (mutations) {
-                mutations.forEach(function (mutation) {
-                    if (mutation.type === 'attributes') {
-                        var target = mutation.target;
-                        if (nuiThemeEnabled && target instanceof Element && target.matches(LOGO_SELECTOR)) {
-                            if (target.getAttribute('src') !== menuLogoUrl) {
-                                target.setAttribute('src', menuLogoUrl);
-                                target.dataset.addonThemer = 'menu-logo';
-                                markMenuShell(target);
-                            }
-                        }
-                        return;
-                    }
-                    mutation.addedNodes.forEach(function (node) {
-                        if (!(node instanceof Element)) return;
-                        if (nuiThemeEnabled) {
-                            if (node.matches && node.matches(LOGO_SELECTOR)) {
-                                replaceMenuLogos(document);
-                                return;
-                            }
-                            if (node.querySelector && node.querySelector(LOGO_SELECTOR)) {
-                                replaceMenuLogos(node);
-                            }
-                        }
-                    });
-                });
-            });
-
-            observer.observe(document.body, {
+            new MutationObserver(onMutation).observe(document.body, {
                 childList: true,
                 subtree: true,
                 attributes: true,
